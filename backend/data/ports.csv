@@ -1,0 +1,8 @@
+port,max_draft,max_loa,max_beam,handling_rate,congestion,waiting_days
+Dhamra,14.5,300,45,45000,0.32,1.2
+Paradip,15.0,300,45,50000,0.21,0.8
+Visakhapatnam,16.0,320,48,55000,0.18,0.6
+Gangavaram,18.0,350,50,60000,0.15,0.5
+Gopalpur,12.5,250,40,35000,0.40,1.8
+Sagar-Sandheads,10.5,220,35,30000,0.55,2.5
+Haldia,9.5,200,32,28000,0.60,3.0

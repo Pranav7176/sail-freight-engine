@@ -1,0 +1,9 @@
+vessel_id,name,vessel_class,dwt,loa,beam,draft,speed,availability
+V001,Ocean Alpha,Panamax,75000,225,32,13.5,14.2,Available
+V002,Ocean Beta,Supramax,55000,190,30,11.8,13.5,Available
+V003,Ocean Gamma,Capesize,120000,280,45,17.0,15.0,Available
+V004,Ocean Delta,Panamax,80000,230,32,13.8,14.0,Available
+V005,Ocean Eagle,Supramax,52000,185,29,11.5,13.8,Unavailable
+V006,Ocean Star,Panamax,70000,220,31,13.2,14.5,Available
+V007,Ocean Titan,Capesize,110000,275,44,16.5,14.8,Available
+V008,Ocean Pearl,Supramax,58000,195,31,12.0,13.2,Available
