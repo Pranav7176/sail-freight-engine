@@ -98,8 +98,7 @@ def forecast_future(vessel_class="Panamax", days=30):
             day_of_year
         ]], columns=features)
 
-        prediction = model.predict(X_future)[0]
-
+        prediction = float(model.predict(X_future)[0])
         prediction = max(prediction, 5)
 
         history.append(prediction)

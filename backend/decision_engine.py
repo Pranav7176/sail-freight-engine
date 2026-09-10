@@ -1,9 +1,11 @@
 import pandas as pd
 
+from economics.optimization import risk_adjusted_timing
 from vessel_engine import find_feasible_vessels
 from economics.voyage_cost import calculate_voyage_cost
 from forecasting.xgboost_forecast import forecast_future
 from risk_engine import simulate_freight_risk
+from economics.optimization import risk_adjusted_timing
 
 
 def run_decision_engine():
@@ -81,8 +83,6 @@ def run_decision_engine():
     print(f"30-Day:  ${forecast_30:.2f}/tonne")
 
     print()
-    print("3. VOYAGE ECONOMICS")
-    print("-------------------")
 
     # vessel = feasible[0]
 
@@ -158,34 +158,92 @@ def run_decision_engine():
     print("4. RISK ANALYSIS")
     print("----------------")
 
-    risk = simulate_freight_risk(
+    risk_7_analysis = simulate_freight_risk(
         current_rate=current_rate,
-        forecast_rate=forecast_14,
-        volatility=0.6,
+        forecast_rate=forecast_7,
         cargo_quantity=cargo_quantity,
         simulations=1000
     )
 
-    print(f"P10: ${risk['p10_rate']:.2f}/tonne")
-    print(f"P50: ${risk['p50_rate']:.2f}/tonne")
-    print(f"P90: ${risk['p90_rate']:.2f}/tonne")
+    risk_14_analysis = simulate_freight_risk(
+        current_rate=current_rate,
+        forecast_rate=forecast_14,
+        cargo_quantity=cargo_quantity,
+        simulations=1000
+    )
 
+    risk_7 = (
+        risk_7_analysis["expected_downside_cost"]
+        / best_vessel["total_cost"]
+    )
+
+    risk_14 = (
+        risk_14_analysis["expected_downside_cost"]
+        / best_vessel["total_cost"]
+    )
+    
+
+    print("7-DAY SCENARIO")
+    print(f"P10: ${risk_7_analysis['p10_rate']:.2f}/tonne")
+    print(f"P50: ${risk_7_analysis['p50_rate']:.2f}/tonne")
+    print(f"P90: ${risk_7_analysis['p90_rate']:.2f}/tonne")
     print(
         f"Probability waiting is cheaper: "
-        f"{risk['probability_wait_cheaper']:.2f}%"
+        f"{risk_7_analysis['probability_wait_cheaper']:.2f}%"
+    )
+    print(
+        f"Expected downside: "
+        f"${risk_7_analysis['expected_downside_cost']:,.2f}"
     )
 
     print()
-    print("5. FINAL RECOMMENDATION")
+    print("14-DAY SCENARIO")
+    print(f"P10: ${risk_14_analysis['p10_rate']:.2f}/tonne")
+    print(f"P50: ${risk_14_analysis['p50_rate']:.2f}/tonne")
+    print(f"P90: ${risk_14_analysis['p90_rate']:.2f}/tonne")
+    print(
+        f"Probability waiting is cheaper: "
+        f"{risk_14_analysis['probability_wait_cheaper']:.2f}%"
+    )
+    print(
+        f"Expected downside: "
+        f"${risk_14_analysis['expected_downside_cost']:,.2f}"
+    )
+
+    timing = risk_adjusted_timing(
+            cargo_quantity=cargo_quantity,
+            current_rate=current_rate,
+            forecast_7=forecast_7,
+            forecast_14=forecast_14,
+            base_cost=best_vessel["total_cost"],
+            risk_7=risk_7,
+            risk_14=risk_14
+        )
+
+    print()
+    print("5. RISK-ADJUSTED CHARTER TIMING")
+    print("-------------------------------")
+
+    print(f"CHARTER NOW: ${timing['now_cost']:,.2f}")
+
+    print()
+    print(f"WAIT 7 DAYS")
+    print(f"Expected Cost: ${timing['wait_7_cost']:,.2f}")
+    print(f"Expected Saving: ${timing['saving_7']:,.2f}")
+    print(f"Risk Penalty: ${timing['risk_penalty_7']:,.2f}")
+    print(f"Risk-Adjusted Cost: ${timing['adjusted_7']:,.2f}")
+
+    print()
+    print(f"WAIT 14 DAYS")
+    print(f"Expected Cost: ${timing['wait_14_cost']:,.2f}")
+    print(f"Expected Saving: ${timing['saving_14']:,.2f}")
+    print(f"Risk Penalty: ${timing['risk_penalty_14']:,.2f}")
+    print(f"Risk-Adjusted Cost: ${timing['adjusted_14']:,.2f}")
+
+    print()
+    print("6. FINAL RECOMMENDATION")
     print("-----------------------")
-
-    if risk["probability_wait_cheaper"] >= 60:
-        recommendation = "WAIT 14 DAYS"
-    else:
-        recommendation = "CHARTER NOW"
-
-    print(f"Recommendation: {recommendation}")
-
+    print(f"Recommendation: {timing['recommendation']}")
     print()
     print("========================================")
 

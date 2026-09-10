@@ -1,59 +1,49 @@
-def compare_charter_timing(
+def risk_adjusted_timing(
     cargo_quantity,
     current_rate,
     forecast_7,
     forecast_14,
-    base_cost
+    base_cost,
+    risk_7,
+    risk_14
 ):
+    now_cost = base_cost
 
-    current_cost = base_cost
+    wait_7_cost = base_cost + ((forecast_7 - current_rate) * cargo_quantity)
 
-    rate_difference_7 = forecast_7 - current_rate
-    rate_difference_14 = forecast_14 - current_rate
+    wait_14_cost = base_cost + ((forecast_14 - current_rate) * cargo_quantity)
 
-    cost_7 = base_cost + (
-        rate_difference_7 * cargo_quantity
-    )
+    saving_7 = now_cost - wait_7_cost
+    saving_14 = now_cost - wait_14_cost
 
-    cost_14 = base_cost + (
-        rate_difference_14 * cargo_quantity
-    )
+    risk_penalty_7 = now_cost * risk_7
+    risk_penalty_14 = now_cost * risk_14
 
-    options = {
-        "charter_now": round(current_cost, 2),
-        "wait_7_days": round(cost_7, 2),
-        "wait_14_days": round(cost_14, 2)
+    adjusted_7 = wait_7_cost + risk_penalty_7
+    adjusted_14 = wait_14_cost + risk_penalty_14
+
+    adjusted_options = {
+        "CHARTER NOW": now_cost,
+        "WAIT 7 DAYS": adjusted_7,
+        "WAIT 14 DAYS": adjusted_14
     }
 
-    best_option = min(options, key=options.get)
+    best_option = min(adjusted_options, key=adjusted_options.get)
 
-    return options, best_option
+    return {
+        "now_cost": round(now_cost, 2),
 
+        "wait_7_cost": round(wait_7_cost, 2),
+        "wait_14_cost": round(wait_14_cost, 2),
 
-if __name__ == "__main__":
+        "saving_7": round(saving_7, 2),
+        "saving_14": round(saving_14, 2),
 
-    cargo_quantity = 50000
+        "risk_penalty_7": round(risk_penalty_7, 2),
+        "risk_penalty_14": round(risk_penalty_14, 2),
 
-    current_rate = 19.00
-    forecast_7 = 19.00
-    forecast_14 = 18.96
+        "adjusted_7": round(adjusted_7, 2),
+        "adjusted_14": round(adjusted_14, 2),
 
-    base_cost = 1239859.15
-
-    options, best = compare_charter_timing(
-        cargo_quantity,
-        current_rate,
-        forecast_7,
-        forecast_14,
-        base_cost
-    )
-
-    print()
-    print("CHARTER TIMING OPTIMIZER")
-    print("========================")
-
-    for option, cost in options.items():
-        print(f"{option}: ${cost:,.2f}")
-
-    print()
-    print("BEST OPTION:", best.upper())
+        "recommendation": best_option
+    }

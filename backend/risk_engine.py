@@ -8,7 +8,6 @@ def simulate_freight_risk(
     cargo_quantity=50000,
     simulations=1000
 ):
-
     np.random.seed(42)
 
     simulated_rates = np.random.normal(
@@ -20,7 +19,6 @@ def simulate_freight_risk(
     simulated_rates = np.maximum(simulated_rates, 5)
 
     current_freight_cost = current_rate * cargo_quantity
-
     simulated_costs = simulated_rates * cargo_quantity
 
     p10_rate = np.percentile(simulated_rates, 10)
@@ -35,15 +33,33 @@ def simulate_freight_risk(
         simulated_costs < current_freight_cost
     )
 
+    downside_costs = np.maximum(
+        simulated_costs - current_freight_cost,
+        0
+    )
+
+    expected_downside_cost = np.mean(downside_costs)
+
+    expected_rate = np.mean(simulated_rates)
+
     return {
+        "expected_rate": round(expected_rate, 2),
         "p10_rate": round(p10_rate, 2),
         "p50_rate": round(p50_rate, 2),
         "p90_rate": round(p90_rate, 2),
+
         "p10_cost": round(p10_cost, 2),
         "p50_cost": round(p50_cost, 2),
         "p90_cost": round(p90_cost, 2),
+
         "probability_wait_cheaper": round(
-            probability_wait_cheaper * 100, 2
+            probability_wait_cheaper * 100,
+            2
+        ),
+
+        "expected_downside_cost": round(
+            expected_downside_cost,
+            2
         )
     }
 
