@@ -1,252 +1,460 @@
 import pandas as pd
+import numpy as np
 
-from economics.optimization import risk_adjusted_timing
+from scenario_engine import build_scenarios
+from market_data import get_current_rate
 from vessel_engine import find_feasible_vessels
-from economics.voyage_cost import calculate_voyage_cost
 from forecasting.xgboost_forecast import forecast_future
-from risk_engine import simulate_freight_risk
+from economics.voyage_cost import calculate_voyage_cost
 from economics.optimization import risk_adjusted_timing
+from risk_engine import simulate_freight_risk
+from economics.contract_strategy import evaluate_contract_strategy
 
 
-def run_decision_engine():
+def get_route_data(origin, destination):
+    routes = pd.read_csv("data/routes.csv")
+    ports = pd.read_csv("data/ports.csv")
 
-    cargo_quantity = 50000
-    destination = "Dhamra"
-    vessel_class = "Panamax"
-
-    current_rate = 19.00
-
-    distance_nm = 3000
-    fuel_price = 600
-    fuel_consumption = 35
-    port_cost = 75000
-    demurrage_per_day = 25000
-
-    print()
-    print("========================================")
-    print("     SAIL FREIGHT DECISION ENGINE")
-    print("========================================")
-
-    print()
-    print("CARGO REQUIREMENT")
-    print("-----------------")
-    print(f"Cargo: {cargo_quantity:,} tonnes")
-    print("Origin: Australia")
-    print(f"Destination: {destination}")
-    print(f"Vessel Class: {vessel_class}")
-
-    print()
-    print("1. VESSEL-PORT FEASIBILITY")
-    print("---------------------------")
-
-    feasible_vessels = find_feasible_vessels(
-        cargo_quantity=cargo_quantity,
-        destination=destination
-    )
-
-    feasible = [
-        vessel for vessel in feasible_vessels
-        if vessel["status"] == "FEASIBLE"
-        and vessel["class"] == vessel_class
+    route = routes[
+        (routes["origin"] == origin) &
+        (routes["destination"] == destination)
     ]
 
-    for vessel in feasible_vessels:
-        print(
-            f"{vessel['vessel']}: "
-            f"{vessel['status']}"
-        )
+    port = ports[ports["port"] == destination]
 
-    if not feasible:
-        print()
-        print("No feasible vessels found.")
-        return
+    if route.empty:
+        return None, None
 
-    print()
-    print(f"Feasible {vessel_class} vessels: {len(feasible)}")
+    if port.empty:
+        return None, None
 
-    print()
-    print("2. FREIGHT FORECAST")
-    print("-------------------")
+    return route.iloc[0], port.iloc[0]
 
-    forecasts = forecast_future(
-        vessel_class=vessel_class,
-        days=30
+
+def run_decision(cargo_quantity, origin, destination):
+
+    route, port = get_route_data(origin, destination)
+
+    if route is None:
+        return {
+            "error": f"No route data available for {origin} → {destination}"
+        }
+
+    feasible_vessels = find_feasible_vessels(
+        cargo_quantity,
+        origin,
+        destination
     )
 
-    forecast_7 = float(forecasts[6]["forecast"])
-    forecast_14 = float(forecasts[13]["forecast"])
-    forecast_30 = float(forecasts[29]["forecast"])
+    if isinstance(feasible_vessels, dict):
+        return feasible_vessels
 
-    print(f"Current: ${current_rate:.2f}/tonne")
-    print(f"7-Day:   ${forecast_7:.2f}/tonne")
-    print(f"14-Day:  ${forecast_14:.2f}/tonne")
-    print(f"30-Day:  ${forecast_30:.2f}/tonne")
+    vessel_analysis = []
+    rejected_vessels = []
 
-    print()
+    for vessel in feasible_vessels:
 
-    # vessel = feasible[0]
+        if vessel["status"] != "FEASIBLE":
 
-    # voyage = calculate_voyage_cost(
-    #     cargo_quantity=cargo_quantity,
-    #     freight_rate=current_rate,
-    #     distance_nm=distance_nm,
-    #     vessel_speed=vessel["speed"] if "speed" in vessel else 14.2,
-    #     fuel_price=fuel_price,
-    #     fuel_consumption=fuel_consumption,
-    #     port_cost=port_cost,
-    #     waiting_days=1.2,
-    #     demurrage_per_day=demurrage_per_day
-    # )
+            rejected_vessels.append({
+                "vessel": vessel["vessel"],
+                "class": vessel["class"],
+                "dwt": vessel["dwt"],
+                "status": "NOT FEASIBLE",
+                "reasons": vessel.get(
+                    "reasons",
+                    ["Vessel does not satisfy route constraints"]
+                )
+            })
 
-    # print(f"Selected vessel: {vessel['vessel']}")
-    # print(f"Freight cost: ${voyage['freight_cost']:,.2f}")
-    # print(f"Fuel cost: ${voyage['fuel_cost']:,.2f}")
-    # print(f"Port cost: ${voyage['port_cost']:,.2f}")
-    # print(f"Waiting cost: ${voyage['waiting_cost']:,.2f}")
-    # print(f"Total cost: ${voyage['total_cost']:,.2f}")
-    # print(f"Cost/tonne: ${voyage['cost_per_tonne']:.2f}")
+            continue
 
-    ####
-    print()
-    print("3. VOYAGE ECONOMICS")
-    print("-------------------")
+        current_rate = get_current_rate(
+            origin,
+            destination,
+            vessel["class"]
+        )
 
-    vessel_results = []
+        if current_rate is None:
+            rejected_vessels.append({
+                "vessel": vessel["vessel"],
+                "class": vessel["class"],
+                "dwt": vessel["dwt"],
+                "status": "NOT FEASIBLE",
+                "reasons": [
+                    "No freight rate available for this vessel class and route"
+                ]
+            })
+            continue
 
-    for vessel in feasible:
+        try:
+            forecast = forecast_future(
+                origin,
+                destination,
+                vessel["class"]
+            )
+
+            if len(forecast) < 14:
+                raise ValueError("Insufficient forecast horizon")
+
+            average_forecast = float(
+                np.mean([
+                    item["forecast"]
+                    for item in forecast
+                ])
+            )
+
+        except Exception:
+            rejected_vessels.append({
+                "vessel": vessel["vessel"],
+                "class": vessel["class"],
+                "dwt": vessel["dwt"],
+                "status": "NOT FEASIBLE",
+                "reasons": [
+                    "Freight forecast unavailable for this vessel class"
+                ]
+            })
+            continue
 
         voyage = calculate_voyage_cost(
             cargo_quantity=cargo_quantity,
             freight_rate=current_rate,
-            distance_nm=distance_nm,
-            vessel_speed=float(vessel["speed"]),
-            fuel_price=fuel_price,
-            fuel_consumption=fuel_consumption,
-            port_cost=port_cost,
-            waiting_days=1.2,
-            demurrage_per_day=demurrage_per_day
+            distance_nm=float(route["distance_nm"]),
+            vessel_speed=vessel["speed"],
+            fuel_price=600,
+            fuel_consumption=35,
+            port_cost=float(port["handling_rate"]),
+            waiting_days=float(port["waiting_days"]),
+            demurrage_per_day=25000
         )
 
-        vessel_results.append({
+        risk = simulate_freight_risk(
+            current_rate=current_rate,
+            forecast_rate=forecast[6]["forecast"],
+            cargo_quantity=cargo_quantity
+        )
+
+        risk_cost = risk["expected_downside_cost"]
+
+        risk_adjusted_cost = (
+            voyage["total_cost"] + risk_cost
+        )
+
+        vessel_analysis.append({
             "vessel": vessel["vessel"],
-            "total_cost": voyage["total_cost"],
-            "cost_per_tonne": voyage["cost_per_tonne"],
-            "fuel_cost": voyage["fuel_cost"],
-            "voyage_days": voyage["voyage_days"]
+            "class": vessel["class"],
+            "dwt": vessel["dwt"],
+            "loa": vessel["loa"],
+            "beam": vessel["beam"],
+            "draft": vessel["draft"],
+            "speed": vessel["speed"],
+            "status": "FEASIBLE",
+
+            "total_cost": round(
+                voyage["total_cost"],
+                2
+            ),
+
+            "cost_per_tonne": round(
+                voyage["cost_per_tonne"],
+                2
+            ),
+
+            "voyage_days": round(
+                voyage["voyage_days"],
+                2
+            ),
+
+            "fuel_cost": round(
+                voyage["fuel_cost"],
+                2
+            ),
+
+            "freight_cost": round(
+                voyage["freight_cost"],
+                2
+            ),
+
+            "waiting_cost": round(
+                voyage["waiting_cost"],
+                2
+            ),
+
+            "forecast_average": round(
+                average_forecast,
+                2
+            ),
+
+            "current_rate": round(
+                current_rate,
+                2
+            ),
+
+            "forecast_7_day": round(
+                forecast[6]["forecast"],
+                2
+            ),
+
+            "risk_cost": round(
+                risk_cost,
+                2
+            ),
+
+            "risk_adjusted_cost": round(
+                risk_adjusted_cost,
+                2
+            ),
+
+            "risk_adjusted_cost_per_tonne": round(
+                risk_adjusted_cost / cargo_quantity,
+                2
+            )
         })
 
-        print()
-        print(vessel["vessel"])
-        print(f"Voyage days: {voyage['voyage_days']}")
-        print(f"Fuel cost: ${voyage['fuel_cost']:,.2f}")
-        print(f"Total cost: ${voyage['total_cost']:,.2f}")
-        print(f"Cost/tonne: ${voyage['cost_per_tonne']:.2f}")
+    if not vessel_analysis:
+        return {
+            "error": "No feasible vessel available for this cargo and destination.",
+            "rejected_vessels": rejected_vessels
+        }
+
+    # ---------------------------------------------------------
+    # SELECT VESSEL USING RISK-ADJUSTED TOTAL COST
+    # ---------------------------------------------------------
 
     best_vessel = min(
-        vessel_results,
-        key=lambda x: x["total_cost"]
+        vessel_analysis,
+        key=lambda x: x["risk_adjusted_cost"]
     )
 
-    print()
-    print("BEST VESSEL")
-    print("-----------")
-    print(best_vessel["vessel"])
-    print(f"Total cost: ${best_vessel['total_cost']:,.2f}")
-    ####
+    for vessel in vessel_analysis:
+        if vessel["vessel"] == best_vessel["vessel"]:
+            vessel["selection_status"] = "SELECTED"
+        else:
+            vessel["selection_status"] = "FEASIBLE"
 
-    print()
-    print("4. RISK ANALYSIS")
-    print("----------------")
+    selected_class = best_vessel["class"]
 
-    risk_7_analysis = simulate_freight_risk(
+    current_rate = best_vessel["current_rate"]
+
+    # ---------------------------------------------------------
+    # FULL FREIGHT FORECAST
+    # ---------------------------------------------------------
+
+    try:
+        full_forecast = forecast_future(
+            origin,
+            destination,
+            selected_class
+        )
+
+    except Exception:
+        full_forecast = []
+
+    if len(full_forecast) < 30:
+        return {
+            "error": (
+                f"No complete 30-day freight forecast available "
+                f"for vessel class {selected_class}"
+            )
+        }
+
+    forecast_values = [
+        item["forecast"]
+        for item in full_forecast
+    ]
+
+    day_7 = forecast_values[6]
+    day_14 = forecast_values[13]
+    day_30 = forecast_values[29]
+
+    # ---------------------------------------------------------
+    # RISK ANALYSIS
+    # ---------------------------------------------------------
+
+    risk = simulate_freight_risk(
         current_rate=current_rate,
-        forecast_rate=forecast_7,
-        cargo_quantity=cargo_quantity,
-        simulations=1000
-    )
-
-    risk_14_analysis = simulate_freight_risk(
-        current_rate=current_rate,
-        forecast_rate=forecast_14,
-        cargo_quantity=cargo_quantity,
-        simulations=1000
+        forecast_rate=day_7,
+        cargo_quantity=cargo_quantity
     )
 
     risk_7 = (
-        risk_7_analysis["expected_downside_cost"]
+        risk["expected_downside_cost"]
         / best_vessel["total_cost"]
+    )
+
+    risk_14_result = simulate_freight_risk(
+        current_rate=current_rate,
+        forecast_rate=day_14,
+        cargo_quantity=cargo_quantity
     )
 
     risk_14 = (
-        risk_14_analysis["expected_downside_cost"]
+        risk_14_result["expected_downside_cost"]
         / best_vessel["total_cost"]
     )
-    
 
-    print("7-DAY SCENARIO")
-    print(f"P10: ${risk_7_analysis['p10_rate']:.2f}/tonne")
-    print(f"P50: ${risk_7_analysis['p50_rate']:.2f}/tonne")
-    print(f"P90: ${risk_7_analysis['p90_rate']:.2f}/tonne")
-    print(
-        f"Probability waiting is cheaper: "
-        f"{risk_7_analysis['probability_wait_cheaper']:.2f}%"
-    )
-    print(
-        f"Expected downside: "
-        f"${risk_7_analysis['expected_downside_cost']:,.2f}"
-    )
-
-    print()
-    print("14-DAY SCENARIO")
-    print(f"P10: ${risk_14_analysis['p10_rate']:.2f}/tonne")
-    print(f"P50: ${risk_14_analysis['p50_rate']:.2f}/tonne")
-    print(f"P90: ${risk_14_analysis['p90_rate']:.2f}/tonne")
-    print(
-        f"Probability waiting is cheaper: "
-        f"{risk_14_analysis['probability_wait_cheaper']:.2f}%"
-    )
-    print(
-        f"Expected downside: "
-        f"${risk_14_analysis['expected_downside_cost']:,.2f}"
-    )
+    # ---------------------------------------------------------
+    # CHARTER TIMING
+    # ---------------------------------------------------------
 
     timing = risk_adjusted_timing(
-            cargo_quantity=cargo_quantity,
-            current_rate=current_rate,
-            forecast_7=forecast_7,
-            forecast_14=forecast_14,
-            base_cost=best_vessel["total_cost"],
-            risk_7=risk_7,
-            risk_14=risk_14
+        cargo_quantity=cargo_quantity,
+        current_rate=current_rate,
+        forecast_7=day_7,
+        forecast_14=day_14,
+        base_cost=best_vessel["total_cost"],
+        risk_7=risk_7,
+        risk_14=risk_14,
+        probability_7=risk["probability_wait_cheaper"],
+        probability_14=risk_14_result[
+            "probability_wait_cheaper"
+        ]
+    )
+
+    # ---------------------------------------------------------
+    # VOYAGE SCENARIOS
+    # ---------------------------------------------------------
+
+    scenarios = build_scenarios(
+        cargo_quantity=cargo_quantity,
+        current_rate=current_rate,
+        forecast_7=day_7,
+        forecast_14=day_14,
+        distance_nm=float(route["distance_nm"]),
+        vessel_speed=best_vessel["speed"],
+        fuel_price=600,
+        fuel_consumption=35,
+        port_cost=float(port["handling_rate"]),
+        waiting_days=float(port["waiting_days"]),
+        demurrage_per_day=25000,
+        probability_7=risk[
+            "probability_wait_cheaper"
+        ],
+        probability_14=risk_14_result[
+            "probability_wait_cheaper"
+        ]
+    )
+
+    # ---------------------------------------------------------
+    # CONTRACT STRATEGY
+    # ---------------------------------------------------------
+
+    contract_strategy = evaluate_contract_strategy(
+        cargo_quantity=cargo_quantity,
+        current_rate=current_rate,
+        forecast=full_forecast,
+        volatility=np.std(forecast_values)
+    )
+
+    # ---------------------------------------------------------
+    # FINAL RECOMMENDATION
+    # ---------------------------------------------------------
+
+    final_recommendation = (
+        f"{contract_strategy['recommendation']} "
+        f"{timing['recommendation']}"
+    )
+
+    # ---------------------------------------------------------
+    # VESSEL SELECTION EXPLANATION
+    # ---------------------------------------------------------
+
+    vessel_selection_explanation = (
+        f"{best_vessel['vessel']} ({best_vessel['class']}) "
+        f"was selected because it has the lowest "
+        f"risk-adjusted total voyage cost among all feasible "
+        f"vessels for the {cargo_quantity:,}-tonne "
+        f"{origin} → {destination} movement."
+    )
+
+    # ---------------------------------------------------------
+    # FINAL RESPONSE
+    # ---------------------------------------------------------
+
+    return {
+
+        "cargo": {
+            "quantity": cargo_quantity,
+            "origin": origin,
+            "destination": destination
+        },
+
+        "route": {
+            "distance_nm": float(
+                route["distance_nm"]
+            )
+        },
+
+        "port": {
+            "name": destination,
+            "max_draft": float(
+                port["max_draft"]
+            ),
+            "max_loa": float(
+                port["max_loa"]
+            ),
+            "max_beam": float(
+                port["max_beam"]
+            ),
+            "handling_rate": float(
+                port["handling_rate"]
+            ),
+            "congestion": float(
+                port["congestion"]
+            ),
+            "waiting_days": float(
+                port["waiting_days"]
+            )
+        },
+
+        "forecast": {
+            "vessel_class": selected_class,
+            "current": current_rate,
+            "day_7": day_7,
+            "day_14": day_14,
+            "day_30": day_30,
+            "full": full_forecast
+        },
+
+        "vessel_analysis": vessel_analysis,
+
+        "rejected_vessels": rejected_vessels,
+
+        "best_vessel": best_vessel,
+
+        "vessel_selection": {
+            "selected_vessel": best_vessel["vessel"],
+            "selected_class": best_vessel["class"],
+            "selection_basis": [
+                "Cargo capacity",
+                "Loading-port constraints",
+                "Destination-port constraints",
+                "Vessel availability",
+                "Voyage economics",
+                "Freight risk",
+                "Lowest risk-adjusted total cost"
+            ],
+            "explanation": vessel_selection_explanation
+        },
+
+        "risk": {
+            "7_day": risk,
+            "14_day": risk_14_result
+        },
+
+        "timing": timing,
+
+        "contract_strategy": contract_strategy,
+
+        "scenarios": scenarios,
+
+        "recommendation": final_recommendation,
+
+        "explanation": (
+            f"{vessel_selection_explanation} "
+            f"The freight risk engine recommends "
+            f"{timing['recommendation'].lower()}, "
+            f"while the contract strategy engine recommends "
+            f"{contract_strategy['recommendation'].lower()}."
         )
-
-    print()
-    print("5. RISK-ADJUSTED CHARTER TIMING")
-    print("-------------------------------")
-
-    print(f"CHARTER NOW: ${timing['now_cost']:,.2f}")
-
-    print()
-    print(f"WAIT 7 DAYS")
-    print(f"Expected Cost: ${timing['wait_7_cost']:,.2f}")
-    print(f"Expected Saving: ${timing['saving_7']:,.2f}")
-    print(f"Risk Penalty: ${timing['risk_penalty_7']:,.2f}")
-    print(f"Risk-Adjusted Cost: ${timing['adjusted_7']:,.2f}")
-
-    print()
-    print(f"WAIT 14 DAYS")
-    print(f"Expected Cost: ${timing['wait_14_cost']:,.2f}")
-    print(f"Expected Saving: ${timing['saving_14']:,.2f}")
-    print(f"Risk Penalty: ${timing['risk_penalty_14']:,.2f}")
-    print(f"Risk-Adjusted Cost: ${timing['adjusted_14']:,.2f}")
-
-    print()
-    print("6. FINAL RECOMMENDATION")
-    print("-----------------------")
-    print(f"Recommendation: {timing['recommendation']}")
-    print()
-    print("========================================")
-
-
-if __name__ == "__main__":
-    run_decision_engine()
+    }

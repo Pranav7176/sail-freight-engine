@@ -21,15 +21,35 @@ def create_features(df):
     return df
 
 
-def train_model(vessel_class="Panamax"):
+def train_model(
+    origin="Australia",
+    destination="Dhamra",
+    vessel_class="Panamax"
+):
 
     df = pd.read_csv("data/freight.csv")
 
-    df = df[df["vessel_class"] == vessel_class].copy()
+    df = df[
+        (df["origin"] == origin) &
+        (df["destination"] == destination) &
+        (df["vessel_class"] == vessel_class)
+    ].copy()
+
+    if df.empty:
+        raise ValueError(
+            f"No freight data available for "
+            f"{origin} → {destination} → {vessel_class}"
+        )
 
     df["date"] = pd.to_datetime(df["date"])
 
     df = df.sort_values("date").reset_index(drop=True)
+
+    if len(df) < 30:
+        raise ValueError(
+            f"Insufficient historical data for "
+            f"{origin} → {destination} → {vessel_class}"
+        )
 
     training_data = create_features(df).dropna()
 
@@ -62,9 +82,18 @@ def train_model(vessel_class="Panamax"):
     return model, df, features
 
 
-def forecast_future(vessel_class="Panamax", days=30):
+def forecast_future(
+    origin="Australia",
+    destination="Dhamra",
+    vessel_class="Panamax",
+    days=30
+):
 
-    model, df, features = train_model(vessel_class)
+    model, df, features = train_model(
+        origin,
+        destination,
+        vessel_class
+    )
 
     history = list(df["freight_rate"])
 
@@ -87,18 +116,24 @@ def forecast_future(vessel_class="Panamax", days=30):
         day_of_week = current_date.dayofweek
         day_of_year = current_date.dayofyear
 
-        X_future = pd.DataFrame([[
-            lag_1,
-            lag_2,
-            lag_3,
-            lag_7,
-            rolling_7,
-            rolling_14,
-            day_of_week,
-            day_of_year
-        ]], columns=features)
+        X_future = pd.DataFrame(
+            [[
+                lag_1,
+                lag_2,
+                lag_3,
+                lag_7,
+                rolling_7,
+                rolling_14,
+                day_of_week,
+                day_of_year
+            ]],
+            columns=features
+        )
 
-        prediction = float(model.predict(X_future)[0])
+        prediction = float(
+            model.predict(X_future)[0]
+        )
+
         prediction = max(prediction, 5)
 
         history.append(prediction)
@@ -114,13 +149,15 @@ def forecast_future(vessel_class="Panamax", days=30):
 if __name__ == "__main__":
 
     forecast = forecast_future(
+        origin="Australia",
+        destination="Dhamra",
         vessel_class="Panamax",
         days=30
     )
 
     print()
-    print("PANAMAX FREIGHT FORECAST")
-    print("========================")
+    print("ROUTE-SPECIFIC PANAMAX FREIGHT FORECAST")
+    print("=======================================")
 
     for row in forecast:
         print(row)
