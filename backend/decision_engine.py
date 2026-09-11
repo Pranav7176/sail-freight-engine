@@ -332,7 +332,9 @@ def run_decision(cargo_quantity, origin, destination):
         ],
         probability_14=risk_14_result[
             "probability_wait_cheaper"
-        ]
+        ],
+        risk_7=risk_7,
+        risk_14=risk_14
     )
 
     # ---------------------------------------------------------

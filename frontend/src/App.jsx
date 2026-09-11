@@ -996,6 +996,197 @@ function App() {
                 </p>
               </div>
             </section>
+            {/* SCENARIO & STRESS ANALYSIS */}
+
+            <section className="panel">
+
+              <div className="panel-header">
+
+                <div>
+                  <h2>Scenario & Stress Analysis</h2>
+
+                  <p>
+                    Evaluate the impact of adverse market and operational conditions
+                  </p>
+                </div>
+
+              </div>
+
+              <div className="scenario-base">
+
+                <span>BASE CASE</span>
+
+                <strong>
+                  ${data.scenarios.stress_analysis.base.cost_per_tonne.toFixed(2)}/t
+                </strong>
+
+                <small>
+                  ${data.scenarios.stress_analysis.base.total_cost.toLocaleString(
+                    "en-US",
+                    {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }
+                  )} total logistics cost
+                </small>
+
+              </div>
+
+              <div className="scenario-grid">
+
+                <div className="scenario-card">
+
+                  <span>FREIGHT +10%</span>
+
+                  <strong>
+                    $
+                    {data.scenarios.stress_analysis.freight_plus_10.cost_per_tonne.toFixed(
+                      2
+                    )}
+                    /t
+                  </strong>
+
+                  <small>
+                    +{data.scenarios.stress_analysis.freight_plus_10.cost_impact_percent.toFixed(
+                      2
+                    )}
+                    % cost impact
+                  </small>
+
+                </div>
+
+                <div className="scenario-card">
+
+                  <span>FUEL +15%</span>
+
+                  <strong>
+                    $
+                    {data.scenarios.stress_analysis.fuel_plus_15.cost_per_tonne.toFixed(
+                      2
+                    )}
+                    /t
+                  </strong>
+
+                  <small>
+                    +{data.scenarios.stress_analysis.fuel_plus_15.cost_impact_percent.toFixed(
+                      2
+                    )}
+                    % cost impact
+                  </small>
+
+                </div>
+
+                <div className="scenario-card">
+
+                  <span>CONGESTION +2 DAYS</span>
+
+                  <strong>
+                    $
+                    {data.scenarios.stress_analysis.congestion_plus_2.cost_per_tonne.toFixed(
+                      2
+                    )}
+                    /t
+                  </strong>
+
+                  <small>
+                    +{data.scenarios.stress_analysis.congestion_plus_2.cost_impact_percent.toFixed(
+                      2
+                    )}
+                    % cost impact
+                  </small>
+
+                </div>
+
+              </div>
+
+              <div className="scenario-combined">
+
+                <div>
+
+                  <span>COMBINED MARKET STRESS</span>
+
+                  <strong>
+                    $
+                    {data.scenarios.stress_analysis.combined.cost_per_tonne.toFixed(
+                      2
+                    )}
+                    /t
+                  </strong>
+
+                </div>
+
+                <div className="scenario-impact">
+
+                  <strong>
+                    +{data.scenarios.stress_analysis.combined.cost_impact_percent.toFixed(
+                      2
+                    )}
+                    %
+                  </strong>
+
+                  <small>
+                    cost impact
+                  </small>
+
+                </div>
+
+              </div>
+
+              <div className="resilience">
+
+                <div className="resilience-header">
+                  <span>RECOMMENDATION RESILIENCE</span>
+
+                  <strong>
+                    Base decision:{" "}
+                    {data.scenarios.stress_analysis.resilience.base_decision}
+                  </strong>
+                </div>
+
+                <div className="resilience-list">
+
+                  {[
+                    ["freight_plus_10", "Freight +10%"],
+                    ["fuel_plus_15", "Fuel +15%"],
+                    ["congestion_plus_2", "Congestion +2 days"],
+                    ["combined", "Combined Stress"]
+                  ].map(([key, label]) => {
+
+                    const scenario =
+                      data.scenarios.stress_analysis.resilience.scenarios[key];
+
+                    return (
+                      <div className="resilience-row" key={key}>
+
+                        <div>
+                          <strong>{label}</strong>
+
+                          <small>
+                            {scenario.stress_decision}
+                          </small>
+                        </div>
+
+                        <div
+                          className={
+                            scenario.decision_changed
+                              ? "resilience-status changed"
+                              : "resilience-status stable"
+                          }
+                        >
+                          {scenario.decision_changed
+                            ? "⚠ Decision changes"
+                            : "✓ Decision stable"}
+                        </div>
+
+                      </div>
+                    );
+                  })}
+
+                </div>
+
+              </div>
+
+            </section>
 
             {/* EXPLANATION */}
 
