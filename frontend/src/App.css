@@ -448,11 +448,24 @@ label,
 
 .error-message {
   margin-top: 18px;
-  padding: 12px;
-  border-radius: 8px;
-  background: rgba(239, 68, 68, 0.1);
-  color: #f87171;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 90, 90, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 90, 90, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.error-message strong {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.error-message span {
   font-size: 14px;
+  opacity: 0.8;
 }
 
 @media (max-width: 900px) {
@@ -855,3 +868,40 @@ label,
   color: #f59e0b;
 }
 
+.port-fit {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.port-fit h3 {
+  margin: 0 0 22px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.port-fit > div {
+  margin: 10px auto;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.port-fit span {
+  display: inline-block;
+  min-width: 65px;
+}
+
+.port-fit strong {
+  font-weight: 600;
+}
+
+.port-fit > p:last-child {
+  margin-top: 20px;
+  padding: 12px 16px;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.06);
+  font-size: 14px;
+  font-weight: 600;
+}

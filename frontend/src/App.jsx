@@ -102,22 +102,24 @@ function App() {
                 value={origin}
                 onChange={(e) => setOrigin(e.target.value)}
               >
-                <option value="Australia">Australia</option>
-
-                <option value="USA" disabled>
-                  USA — coming soon
+                <option value="Australia">
+                  Australia
                 </option>
 
-                <option value="Mozambique" disabled>
-                  Mozambique — coming soon
+                <option value="USA">
+                  USA
                 </option>
 
-                <option value="Russia" disabled>
-                  Russia — coming soon
+                <option value="Mozambique">
+                  Mozambique
                 </option>
 
-                <option value="Indonesia" disabled>
-                  Indonesia — coming soon
+                <option value="Russia">
+                  Russia 
+                </option>
+
+                <option value="Indonesia">
+                  Indonesia
                 </option>
               </select>
 
@@ -193,7 +195,8 @@ function App() {
 
           {error && (
             <div className="error-message">
-              {error}
+              <strong>Unable to generate procurement strategy</strong>
+              <span><b>{error}</b></span>
             </div>
           )}
         </section>

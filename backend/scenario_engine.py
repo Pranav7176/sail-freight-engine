@@ -148,25 +148,28 @@ def build_scenarios(
 
     stress_cases = {
         "freight_plus_10": {
-            "current_rate": current_rate * 1.10,
+            "current_rate": current_rate,
             "forecast_7": forecast_7 * 1.10,
             "forecast_14": forecast_14 * 1.10,
-            "base_cost": freight_stress["total_cost"]
+            "base_cost": now_cost
         },
+
         "fuel_plus_15": {
             "current_rate": current_rate,
             "forecast_7": forecast_7,
             "forecast_14": forecast_14,
             "base_cost": fuel_stress["total_cost"]
         },
+
         "congestion_plus_2": {
             "current_rate": current_rate,
             "forecast_7": forecast_7,
             "forecast_14": forecast_14,
             "base_cost": congestion_stress["total_cost"]
         },
+
         "combined": {
-            "current_rate": current_rate * 1.10,
+            "current_rate": current_rate,
             "forecast_7": forecast_7 * 1.10,
             "forecast_14": forecast_14 * 1.10,
             "base_cost": combined_stress["total_cost"]
